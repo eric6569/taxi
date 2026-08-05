@@ -399,7 +399,7 @@
       <span>GPS</span>
     </span>
     <span style="color:#444">|</span>
-    <span class="app-version">beta.5</span>
+    <span class="app-version">beta.6</span>
   </div>
 
   <div class="lcd-panel">
@@ -712,13 +712,14 @@ function saveTripFile(f,d,e,w,ms,night,n){
 `計費紀錄
 時間：${n.getFullYear()}/${pad2(n.getMonth()+1)}/${pad2(n.getDate())} ${pad2(n.getHours())}:${pad2(n.getMinutes())}
 車資：NT$${f.toLocaleString('en-US')}
+起跳費：NT$${R.baseFare}
 里程費用：NT$${distFee}
 等候費用：NT$${waitFee}
+夜間加成：NT$${night?R.nPlus:0}
 里程：${(d/1000).toFixed(2)} km
 等候時間：${fmt(w)}
 租賃時間：${fmt(e)}
 最高時速：${ms} km/h
-夜間加成：${night?'是':'否'}
 `;
   const blob=new Blob(['﻿'+content],{type:'text/plain;charset=utf-8'});
   const url=URL.createObjectURL(blob);
