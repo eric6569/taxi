@@ -1,0 +1,806 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#000000">
+<link rel="manifest" href="manifest.json">
+<title>Taxi Meter</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html { overscroll-behavior-y: none; }
+
+  body {
+    min-height: 100vh;
+    background: #000;
+    color: #b0b0b0;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    display: flex;
+    justify-content: center;
+    padding: 16px;
+    overscroll-behavior-y: none;
+  }
+
+  .container {
+    width: 100%;
+    max-width: 400px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .status-bar {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 12px 16px;
+    background: #1a1a1a;
+    border: 1px solid #333;
+    border-radius: 10px;
+    margin-bottom: 16px;
+    font-size: 18px;
+    color: #707070;
+  }
+  .status-dot {
+    display: inline-block;
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    background: #404040;
+    margin-right: 5px;
+    vertical-align: middle;
+  }
+  .status-dot.running {
+    background: #66dd44;
+    animation: pulse 1.5s infinite;
+  }
+  .status-dot.paused { background: #cc4444; animation: pulse 1.5s infinite; }
+  .status-dot.gps-ready { background: #66dd44; }
+  .status-dot.gps-locating { background: #ccaa33; animation: pulse 1.5s infinite; }
+  .status-dot.gps-error { background: #cc4444; }
+  .app-version { font-size: 18px; color: #555; }
+
+  /* LCD Panel */
+  .lcd-panel {
+    background: #8aad32;
+    border: 3px solid #5a7a22;
+    border-radius: 14px;
+    padding: 9px 20px 9px;
+    width: 100%;
+    margin-bottom: 14px;
+    box-shadow: inset 0 2px 8px rgba(0,0,0,0.15), 0 4px 20px rgba(0,0,0,0.4);
+    position: relative;
+  }
+  .lcd-label {
+    font-size: 21px;
+    color: #3a5518;
+    letter-spacing: 2px;
+    margin-bottom: 5px;
+    text-align: center;
+    font-weight: 600;
+  }
+
+  /* Fare digits */
+  .fare-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: center;
+    gap: 6px;
+  }
+  .fare-currency {
+    font-size: 25px;
+    font-weight: 700;
+    color: rgba(26,40,10,0.4);
+    line-height: 1;
+  }
+  .fare-digits {
+    font-weight: 700;
+    color: #000;
+    font-size: 75px;
+    line-height: 1;
+  }
+  @keyframes fareFloatUp {
+    0% { opacity: 0; transform: translateY(0); }
+    15% { opacity: 1; transform: translateY(-10px); }
+    100% { opacity: 0; transform: translateY(-90px); }
+  }
+  .fare-popup {
+    position: absolute;
+    right: 12px;
+    bottom: 8px;
+    color: #cc4444;
+    font-weight: 400;
+    font-size: 38px;
+    pointer-events: none;
+    white-space: nowrap;
+    animation: fareFloatUp 4s linear forwards;
+  }
+
+  /* Stats row */
+  .stats-row {
+    display: grid;
+    grid-template-columns: auto auto auto;
+    justify-content: center;
+    align-items: baseline;
+    column-gap: 10px;
+    width: 100%;
+    background: #8aad32;
+    border: 3px solid #5a7a22;
+    border-radius: 14px;
+    padding: 4px 20px;
+    margin-bottom: 14px;
+    box-shadow: inset 0 2px 8px rgba(0,0,0,0.15), 0 4px 20px rgba(0,0,0,0.4);
+    position: relative;
+    overflow: hidden;
+  }
+  .stats-row > * {
+    padding: 2.5px 0;
+  }
+  .stat-label {
+    justify-self: start;
+    margin-right: 24px;
+    font-size: 16px;
+    color: #3a5518;
+    letter-spacing: 1px;
+    font-weight: 600;
+  }
+  .stat-digits {
+    justify-self: end;
+    font-weight: 700;
+    color: #000;
+    font-size: 30px;
+  }
+  .stat-unit {
+    justify-self: start;
+    font-size: 12px;
+    color: #3a5518;
+    font-weight: 600;
+  }
+
+  /* Buttons */
+  .controls {
+    display: flex;
+    gap: 12px;
+    width: 100%;
+    margin-bottom: 16px;
+  }
+  .btn {
+    flex: 1;
+    padding: 16px;
+    font-size: 18px;
+    font-weight: 700;
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: transform 0.1s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .btn:active { transform: scale(0.97); }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-start {
+    background: linear-gradient(135deg, #e0e0e0 0%, #bbb 100%);
+    color: #111;
+    box-shadow: 0 4px 16px rgba(255,255,255,0.1);
+  }
+  .btn-pause {
+    background: transparent;
+    border: 2px solid #ccaa33;
+    color: #ccaa33;
+  }
+  .btn-stop {
+    background: transparent;
+    border: 2px solid #cc4444;
+    color: #cc4444;
+  }
+  .hidden { display: none !important; }
+
+  /* Night toggle */
+  .settings-box {
+    width: 100%;
+    background: #1a1a1a;
+    border: 1px solid #333;
+    border-radius: 10px;
+    margin-bottom: 16px;
+    overflow: hidden;
+  }
+  .night-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+  }
+  .night-toggle + .night-toggle {
+    border-top: 1px solid #333;
+  }
+  .night-toggle-label { font-size: 13px; color: #aaa; }
+  .toggle-track {
+    width: 48px; height: 26px;
+    border-radius: 13px;
+    border: none;
+    cursor: pointer;
+    background: #333;
+    position: relative;
+    transition: background 0.2s;
+  }
+  .toggle-track.on { background: #ccaa33; }
+  .toggle-thumb {
+    position: absolute;
+    top: 3px; left: 3px;
+    width: 20px; height: 20px;
+    border-radius: 50%;
+    background: #e0e0e0;
+    transition: left 0.2s;
+    pointer-events: none;
+  }
+  .toggle-track.on .toggle-thumb { left: 25px; }
+
+  .fare-rules {
+    padding: 12px 16px;
+    border-top: 1px solid #333;
+    font-size: 11px;
+    color: #777;
+    line-height: 1.8;
+  }
+  .fare-rules-title {
+    color: #aaa;
+    font-weight: 600;
+    margin-bottom: 4px;
+    font-size: 12px;
+  }
+  .fare-rules summary {
+    cursor: pointer;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .fare-rules summary::-webkit-details-marker { display: none; }
+  .fare-rules summary::after {
+    content: '▸';
+    font-size: 11px;
+    color: #666;
+    transition: transform 0.15s ease;
+  }
+  .fare-rules[open] summary::after { transform: rotate(90deg); }
+
+  .import-box {
+    padding: 12px 16px;
+    border-bottom: 1px solid #333;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .import-box-title {
+    font-size: 13px;
+    color: #aaa;
+    letter-spacing: 1px;
+    flex-shrink: 0;
+  }
+  .import-box-actions { display: flex; gap: 8px; }
+  .import-box-actions .btn-clear {
+    width: auto;
+    flex: 1;
+    height: 65px;
+    margin-top: 0;
+    padding-left: 20px;
+    padding-right: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+  }
+  .import-box-actions .btn-icon { font-size: 22px; }
+
+  .history { width: 100%; margin-bottom: 16px; }
+  .history-title {
+    font-size: 12px;
+    color: #aaa;
+    font-weight: 600;
+    margin-bottom: 8px;
+    letter-spacing: 1px;
+  }
+  .history-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 14px;
+    background: #1a1a1a;
+    border: 1px solid #333;
+    border-radius: 8px;
+    margin-bottom: 6px;
+    font-size: 13px;
+  }
+  .h-time { color: #888; }
+  .h-dist { color: #aaa; font-family: monospace; }
+  .h-dur { color: #aaa; }
+  .h-fare { color: #ddd; font-weight: 700; font-family: monospace; }
+  .btn-clear {
+    width: 100%;
+    padding: 8px;
+    font-size: 12px;
+    border: 1px solid #333;
+    border-radius: 8px;
+    cursor: pointer;
+    background: transparent;
+    color: #777;
+    margin-top: 4px;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  /* Custom modal (replaces native confirm/alert to avoid browser origin banner) */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    z-index: 1000;
+  }
+  .modal-box {
+    width: 100%;
+    max-width: 320px;
+    background: #1a1a1a;
+    border: 1px solid #333;
+    border-radius: 14px;
+    padding: 24px 20px 20px;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.5);
+  }
+  .modal-message {
+    color: #ddd;
+    font-size: 15px;
+    line-height: 1.6;
+    text-align: center;
+    margin-bottom: 20px;
+    white-space: pre-line;
+  }
+  .modal-actions { display: flex; gap: 10px; }
+  .modal-btn {
+    flex: 1;
+    padding: 12px;
+    font-size: 15px;
+    font-weight: 700;
+    border-radius: 10px;
+    cursor: pointer;
+    border: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .modal-btn-ok {
+    background: linear-gradient(135deg, #e0e0e0 0%, #bbb 100%);
+    color: #111;
+  }
+  .modal-btn-cancel {
+    background: transparent;
+    border: 2px solid #555;
+    color: #aaa;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="status-bar">
+    <span id="statusLabel">
+      <span class="status-dot" id="statusDot"></span>
+      <span>計費</span>
+    </span>
+    <span style="color:#444">|</span>
+    <span id="gpsStatus">
+      <span class="status-dot" id="gpsDot"></span>
+      <span>GPS</span>
+    </span>
+    <span style="color:#444">|</span>
+    <span class="app-version">beta.5</span>
+  </div>
+
+  <div class="lcd-panel">
+    <div class="lcd-label" id="fareLabel">應付車資</div>
+    <div class="fare-row">
+      <span class="fare-currency">NT$</span>
+      <span class="fare-digits" id="fareDisplay"></span>
+    </div>
+  </div>
+
+  <div class="stats-row">
+    <div class="stat-label">等候</div>
+    <div class="stat-digits" id="waitDisplay">00:00</div>
+    <span class="stat-unit" id="waitFare">(+NT$0)</span>
+
+    <div class="stat-label">里程</div>
+    <div class="stat-digits" id="distDisplay"></div>
+    <span class="stat-unit">km</span>
+
+    <div class="stat-label">時間</div>
+    <div class="stat-digits" id="timeDisplay"></div>
+    <span class="stat-unit">mm:ss</span>
+
+    <div class="stat-label">時速</div>
+    <div class="stat-digits" id="speedDisplay"></div>
+    <span class="stat-unit">km/h</span>
+
+    <div class="stat-label">最高</div>
+    <div class="stat-digits" id="maxSpeedDisplay"></div>
+    <span class="stat-unit">km/h</span>
+  </div>
+
+  <div class="controls">
+    <button class="btn btn-start" id="btnStart" onclick="onStart()">▶ 開始計費</button>
+    <button class="btn btn-pause hidden" id="btnPause" onclick="onPause()">⏸ 暫停</button>
+    <button class="btn btn-stop hidden" id="btnStop" onclick="onReset()">⏹ 結束</button>
+  </div>
+
+  <div class="settings-box">
+    <div class="import-box">
+      <div class="import-box-title">行程</div>
+      <div class="import-box-actions">
+        <input type="file" id="importFileInput" accept=".txt" multiple class="hidden" onchange="onImportFiles(event)">
+        <button class="btn-clear" onclick="$('importFileInput').click()"><span class="btn-icon">📥</span>紀錄試算</button>
+        <input type="file" id="openFileInput" accept=".txt" class="hidden" onchange="onOpenFile(event)">
+        <button class="btn-clear" onclick="$('openFileInput').click()"><span class="btn-icon">📂</span>開啟記錄</button>
+      </div>
+    </div>
+
+    <div class="night-toggle">
+      <span class="night-toggle-label">🔇 靜音</span>
+      <button class="toggle-track" id="muteToggle" onclick="toggleMute()">
+        <span class="toggle-thumb"></span>
+      </button>
+    </div>
+
+    <div class="night-toggle">
+      <span class="night-toggle-label">🔆 螢幕常亮</span>
+      <button class="toggle-track" id="wakeLockToggle" onclick="toggleWakeLockSetting()">
+        <span class="toggle-thumb"></span>
+      </button>
+    </div>
+
+    <details class="fare-rules">
+      <summary class="fare-rules-title">費率說明</summary>
+      <div>起步價 NT$85（1.25 km 內）</div>
+      <div>續程每 200m 跳 NT$5</div>
+      <div>時速 5 km/h 以下，每 60 秒跳 NT$5</div>
+      <div>夜間加成（23:00–06:00）+NT$20</div>
+    </details>
+  </div>
+
+  <div class="history hidden" id="historySection">
+    <div class="history-title">行程紀錄</div>
+    <div id="historyList"></div>
+    <button class="btn-clear" onclick="clearHistory()">清除紀錄</button>
+  </div>
+</div>
+
+<div class="modal-overlay hidden" id="modalOverlay">
+  <div class="modal-box">
+    <div class="modal-message" id="modalMessage"></div>
+    <div class="modal-actions">
+      <button class="modal-btn modal-btn-cancel hidden" id="modalCancel">取消</button>
+      <button class="modal-btn modal-btn-ok" id="modalOk">確定</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ===== Fare rules =====
+const R = {
+  baseFare:85, baseDist:1250,
+  dUnit:200, dRate:5,
+  wUnit:60, wRate:5,
+  sTh:5, nPlus:20,
+};
+
+// ===== State =====
+let status='idle', dist=0, elapsed=0, waitTime=0, speed=0, maxSpeed=0;
+function computeNight(){const h=new Date().getHours();return h>=23||h<6}
+let isNight=computeNight();
+let hist=[];
+let lastPos=null, watchId=null, timerRef=null, startTS=null, pausedE=0, lastFare=null, gpsReady=false, muted=false;
+function toggleMute(){muted=!muted;updateUI()}
+const $=id=>document.getElementById(id);
+
+// ===== Custom modal (native confirm/alert show the page URL, so we roll our own) =====
+function showModal(message,{cancel=false}={}){
+  return new Promise(resolve=>{
+    $('modalMessage').textContent=message;
+    const overlay=$('modalOverlay'),ok=$('modalOk'),cancelBtn=$('modalCancel');
+    cancelBtn.classList.toggle('hidden',!cancel);
+    overlay.classList.remove('hidden');
+    ok.onclick=()=>{overlay.classList.add('hidden');resolve(true)};
+    cancelBtn.onclick=()=>{overlay.classList.add('hidden');resolve(false)};
+  });
+}
+
+// ===== Wake lock =====
+let wakeLock=null, wakeLockEnabled=true;
+async function requestWakeLock(){
+  if(!wakeLockEnabled) return;
+  if(!('wakeLock' in navigator)) return;
+  try{
+    wakeLock=await navigator.wakeLock.request('screen');
+    wakeLock.addEventListener('release',()=>{wakeLock=null});
+  }catch(e){wakeLock=null}
+}
+function releaseWakeLock(){
+  if(wakeLock){wakeLock.release();wakeLock=null}
+}
+function toggleWakeLockSetting(){
+  wakeLockEnabled=!wakeLockEnabled;
+  if(wakeLockEnabled){
+    if(status==='running') requestWakeLock();
+  } else {
+    releaseWakeLock();
+  }
+  updateUI();
+}
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState==='visible' && status==='running' && wakeLockEnabled && !wakeLock) requestWakeLock();
+});
+window.addEventListener('beforeunload',e=>{
+  e.preventDefault();e.returnValue='';
+});
+
+// ===== Sound effects =====
+let audioCtx=null;
+function getAudioCtx(){
+  if(!audioCtx) audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+  if(audioCtx.state==='suspended') audioCtx.resume();
+  return audioCtx;
+}
+function tone(ctx,freq,start,dur,peak=0.45){
+  if(muted) return;
+  const osc=ctx.createOscillator(), gain=ctx.createGain();
+  osc.type='triangle'; osc.frequency.value=freq;
+  gain.gain.setValueAtTime(0,start);
+  gain.gain.linearRampToValueAtTime(peak,start+0.008);
+  gain.gain.exponentialRampToValueAtTime(0.001,start+dur);
+  osc.connect(gain).connect(ctx.destination);
+  osc.start(start); osc.stop(start+dur+0.02);
+}
+function playStartSound(){ // 開始計費
+  const ctx=getAudioCtx(), t0=ctx.currentTime;
+  tone(ctx,659.25,t0,0.12,0.45);
+  tone(ctx,783.99,t0+0.1,0.12,0.45);
+  tone(ctx,1046.5,t0+0.2,0.2,0.45);
+}
+function playTickSound(){ // 跳表
+  const ctx=getAudioCtx(), t0=ctx.currentTime;
+  tone(ctx,880,t0,0.13,0.45);
+  tone(ctx,1318.5,t0+0.1,0.18,0.45);
+}
+function playPauseSound(){ // 暫停
+  const ctx=getAudioCtx(), t0=ctx.currentTime;
+  tone(ctx,659.25,t0,0.13,0.4);
+  tone(ctx,440,t0+0.11,0.2,0.4);
+}
+function playStopSound(){ // 結束
+  const ctx=getAudioCtx(), t0=ctx.currentTime;
+  tone(ctx,880,t0,0.13,0.45);
+  tone(ctx,659.25,t0+0.11,0.13,0.45);
+  tone(ctx,440,t0+0.22,0.26,0.45);
+}
+
+function playFareEffect(delta){
+  const popup=document.createElement('span');
+  popup.className='fare-popup';
+  popup.textContent='+'+delta;
+  popup.addEventListener('animationend',()=>popup.remove());
+  document.querySelector('.lcd-panel').appendChild(popup);
+}
+
+function hav(a1,o1,a2,o2){const R2=6371e3,dL=(a2-a1)*Math.PI/180,dO=(o2-o1)*Math.PI/180,a=Math.sin(dL/2)**2+Math.cos(a1*Math.PI/180)*Math.cos(a2*Math.PI/180)*Math.sin(dO/2)**2;return R2*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a))}
+
+function fare(){let f=R.baseFare;if(isNight)f+=R.nPlus;f+=Math.floor(Math.max(0,dist-R.baseDist)/R.dUnit)*R.dRate;f+=Math.floor(waitTime/R.wUnit)*R.wRate;return f}
+
+function fmt(s){const h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sc=s%60;if(h>0)return h+':'+String(m).padStart(2,'0')+':'+String(sc).padStart(2,'0');return String(m).padStart(2,'0')+':'+String(sc).padStart(2,'0')}
+
+function updateUI(){
+  isNight=computeNight();
+  const f=fare();
+  if(status==='running' && lastFare!==null && f>lastFare){playTickSound();playFareEffect(f-lastFare)}
+  lastFare=f;
+  $('fareLabel').textContent = isNight ? '應付車資 - 夜間加成' : '應付車資';
+  $('fareDisplay').textContent = f.toLocaleString('en-US');
+  $('distDisplay').textContent = (dist/1000).toFixed(2);
+  $('timeDisplay').textContent = fmt(elapsed);
+  $('speedDisplay').textContent = String(speed);
+  if(speed>maxSpeed) maxSpeed=speed;
+  $('maxSpeedDisplay').textContent = String(maxSpeed);
+
+  $('waitDisplay').textContent=fmt(waitTime);
+  $('waitFare').textContent='(+NT$'+Math.floor(waitTime/R.wUnit)*R.wRate+')';
+
+  $('wakeLockToggle').classList.toggle('on',wakeLockEnabled);
+  $('muteToggle').classList.toggle('on',muted);
+
+  $('statusDot').className='status-dot'+(status==='running'?' running':status==='paused'?' paused':'');
+
+  const bs=$('btnStart'),bp=$('btnPause'),bt=$('btnStop');
+  if(status==='idle'){
+    bs.classList.remove('hidden'); bs.textContent='▶ 開始計費';
+    bs.disabled=!gpsReady;
+    bp.classList.add('hidden'); bt.classList.add('hidden');
+  } else if(status==='running'){
+    bs.classList.add('hidden');
+    bp.classList.remove('hidden'); bt.classList.remove('hidden');
+  } else {
+    bs.classList.remove('hidden'); bs.textContent='▶ 繼續';
+    bp.classList.add('hidden'); bt.classList.remove('hidden');
+  }
+
+  $('historySection').classList.toggle('hidden',hist.length===0);
+}
+
+function setGps(s){
+  const dot=$('gpsDot');
+  dot.className='status-dot'+(s==='active'?' gps-ready':s==='waiting'?' gps-locating':s==='error'?' gps-error':'');
+}
+
+function stopT(){if(timerRef){clearInterval(timerRef);timerRef=null}}
+
+function startWatch(){
+  watchId=navigator.geolocation.watchPosition(
+    p=>{
+      gpsReady=true;setGps('active');
+      const{latitude:la,longitude:lo,speed:gs}=p.coords;
+      speed=gs!=null?Math.round(gs*3.6):0;
+      if(status==='running'){
+        if(lastPos){const d=hav(lastPos.lat,lastPos.lon,la,lo);if(d>3&&d<200)dist+=d}
+        lastPos={lat:la,lon:lo};
+      }
+      updateUI();
+    },
+    err=>{
+      gpsReady=false;setGps('error');updateUI();
+      if(err.code!==1){ // not PERMISSION_DENIED — worth retrying (timeout/unavailable can resolve itself)
+        navigator.geolocation.clearWatch(watchId);
+        setTimeout(()=>{setGps('waiting');updateUI();startWatch()},3000);
+      }
+    },
+    {enableHighAccuracy:true,maximumAge:2000,timeout:20000}
+  );
+}
+
+function initGps(){
+  if(!navigator.geolocation){setGps('unsupported');updateUI();return}
+  setGps('waiting');
+  startWatch();
+}
+
+function startMeter(){
+  status='running'; lastPos=null;
+  lastFare=fare();
+  playStartSound();
+  requestWakeLock();
+  startTS=Date.now()-pausedE*1000;
+  timerRef=setInterval(()=>{elapsed=Math.floor((Date.now()-startTS)/1000);if(speed<R.sTh)waitTime++;updateUI()},1000);
+  updateUI();
+}
+
+function onStart(){if(!gpsReady)return;startMeter()}
+function onPause(){status='paused';pausedE=elapsed;stopT();playPauseSound();releaseWakeLock();updateUI()}
+async function onReset(){
+  if(!await showModal('結束本次計費，匯出紀錄？',{cancel:true})) return;
+  stopT();
+  playStopSound();
+  releaseWakeLock();
+  if(elapsed>0){
+    const n=new Date();
+    hist.push({fare:fare(),distance:dist,elapsed,waitTime,isNight,time:n.toLocaleTimeString('zh-TW',{hour:'2-digit',minute:'2-digit'})});
+    renderHist();
+    saveTripFile(fare(),dist,elapsed,waitTime,maxSpeed,isNight,n);
+  }
+  status='idle';dist=0;elapsed=0;waitTime=0;speed=0;maxSpeed=0;lastPos=null;pausedE=0;
+  updateUI();
+}
+
+function pad2(n){return String(n).padStart(2,'0')}
+
+function saveTripFile(f,d,e,w,ms,night,n){
+  const filename=`TAXI_${pad2(n.getMonth()+1)}${pad2(n.getDate())}-${pad2(n.getHours())}-${pad2(n.getMinutes())}.txt`;
+  const distFee=Math.floor(Math.max(0,d-R.baseDist)/R.dUnit)*R.dRate;
+  const waitFee=Math.floor(w/R.wUnit)*R.wRate;
+  const content=
+`計費紀錄
+時間：${n.getFullYear()}/${pad2(n.getMonth()+1)}/${pad2(n.getDate())} ${pad2(n.getHours())}:${pad2(n.getMinutes())}
+車資：NT$${f.toLocaleString('en-US')}
+里程費用：NT$${distFee}
+等候費用：NT$${waitFee}
+里程：${(d/1000).toFixed(2)} km
+等候時間：${fmt(w)}
+租賃時間：${fmt(e)}
+最高時速：${ms} km/h
+夜間加成：${night?'是':'否'}
+`;
+  const blob=new Blob(['﻿'+content],{type:'text/plain;charset=utf-8'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;a.download=filename;
+  document.body.appendChild(a);a.click();document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function parseTripText(text){
+  text = text.replace(/^﻿/, '');
+  const fareM = text.match(/車資：NT\$([\d,]+)/);
+  const distM = text.match(/里程：([\d.]+)\s*km/);
+  const dateM = text.match(/時間：(\d{4}\/\d{2}\/\d{2})/);
+  return {
+    fare: fareM ? parseInt(fareM[1].replace(/,/g,''), 10) : 0,
+    distance: distM ? parseFloat(distM[1]) : 0,
+    date: dateM ? dateM[1] : null,
+  };
+}
+
+function readFileAsText(file){
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result);
+    r.onerror = reject;
+    r.readAsText(file, 'UTF-8');
+  });
+}
+
+async function onImportFiles(e){
+  const files = Array.from(e.target.files);
+  e.target.value = '';
+  if(files.length === 0) return;
+
+  const parsed = (await Promise.all(files.map(readFileAsText))).map(parseTripText);
+
+  const totalDays = new Set(parsed.map(p => p.date).filter(Boolean)).size;
+  const totalFare = parsed.reduce((s, p) => s + p.fare, 0);
+  const totalDist = parsed.reduce((s, p) => s + p.distance, 0);
+
+  saveSummaryFile(totalDays, totalFare, totalDist);
+}
+
+async function onOpenFile(e){
+  const file = e.target.files[0];
+  e.target.value = '';
+  if(!file) return;
+  const text = (await readFileAsText(file)).replace(/^﻿/, '');
+  showModal(text);
+}
+
+function saveSummaryFile(days, fare, dist){
+  const n = new Date();
+  const filename = `TAXI_SUMMARY_${pad2(n.getMonth()+1)}${pad2(n.getDate())}-${pad2(n.getHours())}-${pad2(n.getMinutes())}.txt`;
+  const content =
+`紀錄彙總
+總天數：${days} 天
+總車資：NT$${fare.toLocaleString('en-US')}
+總行駛里程：${dist.toFixed(2)} km
+`;
+  const blob = new Blob(['﻿'+content], {type:'text/plain;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function renderHist(){
+  $('historyList').innerHTML=hist.map(t=>`<div class="history-item"><span class="h-time">${t.time} ${t.isNight?'🌙':'☀️'}</span><span class="h-dist">${(t.distance/1000).toFixed(2)} km</span><span class="h-dur">${fmt(t.elapsed)}</span><span class="h-fare">$${t.fare.toLocaleString()}</span></div>`).join('');
+}
+async function clearHistory(){
+  if(!await showModal('清除所有行程紀錄？',{cancel:true})) return;
+  hist=[];renderHist();updateUI()
+}
+
+updateUI();
+initGps();
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('sw.js');
+}
+</script>
+</body>
+</html>
