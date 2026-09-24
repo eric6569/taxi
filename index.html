@@ -197,6 +197,152 @@
   }
   .hidden { display: none !important; }
 
+  /* HUD 抬頭車速顯示 */
+  .btn-hud {
+    width: 100%;
+    padding: 14px;
+    font-size: 17px;
+    font-weight: 700;
+    border: 2px solid #4a90d9;
+    background: transparent;
+    color: #6aa8e0;
+    border-radius: 12px;
+    cursor: pointer;
+    margin-bottom: 16px;
+    -webkit-tap-highlight-color: transparent;
+    transition: transform 0.1s;
+  }
+  .btn-hud:active { transform: scale(0.98); }
+
+  .hud-overlay {
+    position: fixed;
+    inset: 0;
+    background: #000;
+    z-index: 2000;
+    display: flex;
+    flex-direction: column;
+    padding: 16px;
+  }
+  .hud-topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .hud-max { font-size: 16px; color: #666; }
+  .hud-max span { color: #aaa; font-weight: 700; }
+  .hud-btn {
+    background: #1a1a1a;
+    border: 1px solid #333;
+    color: #aaa;
+    border-radius: 10px;
+    padding: 10px 14px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .hud-center {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+  }
+  .hud-center.mirror { transform: scaleX(-1); }
+  .hud-speed {
+    font-weight: 800;
+    font-size: clamp(120px, 42vmin, 460px);
+    line-height: 0.9;
+    letter-spacing: -2px;
+    color: #f0f0f0;
+    font-variant-numeric: tabular-nums;
+  }
+  .hud-unit {
+    font-size: clamp(20px, 6vmin, 48px);
+    color: #666;
+    font-weight: 600;
+    margin-top: 4px;
+  }
+  .hud-colors {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+    width: 100%;
+  }
+  .hud-swatch {
+    width: 34px; height: 34px;
+    border-radius: 50%;
+    border: 2px solid #333;
+    padding: 0;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .hud-swatch.on { outline: 2px solid #fff; outline-offset: 2px; }
+  .hud-swatch-custom {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    background: #1a1a1a;
+    position: relative;
+    overflow: hidden;
+  }
+  .hud-swatch-custom input {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+  }
+
+  /* HUD 設定面板 */
+  .hud-settings {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  .hud-settings-box {
+    width: 100%;
+    max-width: 340px;
+    background: #1a1a1a;
+    border: 1px solid #333;
+    border-radius: 14px;
+    padding: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .hud-settings-title {
+    font-size: 15px;
+    color: #aaa;
+    font-weight: 700;
+    letter-spacing: 1px;
+  }
+  .hud-set-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .hud-set-row > span { font-size: 14px; color: #ccc; }
+  .hud-set-colors {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .hud-settings-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 4px;
+  }
+  .hud-settings-actions .hud-btn { flex: 1; text-align: center; }
+  .hud-btn-exit { border-color: #cc4444; color: #cc4444; }
+
   /* Night toggle */
   .settings-box {
     width: 100%;
@@ -400,7 +546,7 @@
       <span>GPS</span>
     </span>
     <span style="color:#444">|</span>
-    <span class="app-version">beta.7</span>
+    <span class="app-version">beta.8</span>
   </div>
 
   <div class="lcd-panel">
@@ -438,6 +584,8 @@
     <button class="btn btn-pause hidden" id="btnPause" onclick="onPause()">⏸ 暫停</button>
     <button class="btn btn-stop hidden" id="btnStop" onclick="onReset()">⏹ 結束</button>
   </div>
+
+  <button class="btn-hud" id="btnHud" onclick="openHud()">🚗 抬頭顯示（車速）</button>
 
   <div class="settings-box">
     <div class="import-box">
@@ -490,6 +638,50 @@
   </div>
 </div>
 
+<div class="hud-overlay hidden" id="hudOverlay">
+  <div class="hud-topbar">
+    <span class="hud-max">最高 <span id="hudMax">0</span> km/h</span>
+    <button class="hud-btn" onclick="openHudSettings()">⚙ 設定</button>
+  </div>
+  <div class="hud-center" id="hudCenter">
+    <div class="hud-speed" id="hudSpeed">--</div>
+    <div class="hud-unit">km/h</div>
+  </div>
+
+  <div class="hud-settings hidden" id="hudSettings">
+    <div class="hud-settings-box">
+      <div class="hud-settings-title">HUD 設定</div>
+
+      <div class="hud-set-row">
+        <span>🪞 鏡像（擋風玻璃反射）</span>
+        <button class="toggle-track" id="hudMirrorToggle" onclick="toggleHudMirror()">
+          <span class="toggle-thumb"></span>
+        </button>
+      </div>
+
+      <div class="hud-set-row hud-set-colors">
+        <span>數字顏色</span>
+        <div class="hud-colors" id="hudColors">
+          <button class="hud-swatch" data-color="#f0f0f0" style="background:#f0f0f0" onclick="setHudColor('#f0f0f0')"></button>
+          <button class="hud-swatch" data-color="#66dd44" style="background:#66dd44" onclick="setHudColor('#66dd44')"></button>
+          <button class="hud-swatch" data-color="#4ad6e6" style="background:#4ad6e6" onclick="setHudColor('#4ad6e6')"></button>
+          <button class="hud-swatch" data-color="#e6c84d" style="background:#e6c84d" onclick="setHudColor('#e6c84d')"></button>
+          <button class="hud-swatch" data-color="#e6913a" style="background:#e6913a" onclick="setHudColor('#e6913a')"></button>
+          <button class="hud-swatch" data-color="#e05555" style="background:#e05555" onclick="setHudColor('#e05555')"></button>
+          <label class="hud-swatch hud-swatch-custom">🎨
+            <input type="color" id="hudColorPicker" onchange="setHudColor(this.value)">
+          </label>
+        </div>
+      </div>
+
+      <div class="hud-settings-actions">
+        <button class="hud-btn" onclick="closeHudSettings()">完成</button>
+        <button class="hud-btn hud-btn-exit" onclick="closeHud()">✕ 關閉 HUD</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
 // ===== Fare rules =====
 const R = {
@@ -522,8 +714,8 @@ function showModal(message,{cancel=false}={}){
 
 // ===== Wake lock =====
 let wakeLock=null, wakeLockEnabled=true;
-async function requestWakeLock(){
-  if(!wakeLockEnabled) return;
+async function requestWakeLock(force){
+  if(!wakeLockEnabled && !force) return;
   if(!('wakeLock' in navigator)) return;
   try{
     wakeLock=await navigator.wakeLock.request('screen');
@@ -543,8 +735,49 @@ function toggleWakeLockSetting(){
   updateUI();
 }
 document.addEventListener('visibilitychange',()=>{
-  if(document.visibilityState==='visible' && status==='running' && wakeLockEnabled && !wakeLock) requestWakeLock();
+  if(document.visibilityState!=='visible' || wakeLock) return;
+  if(hudActive) requestWakeLock(true);
+  else if(status==='running' && wakeLockEnabled) requestWakeLock();
 });
+
+// ===== HUD 抬頭車速顯示 =====
+let hudActive=false, hudMirror=false, hudColor='#f0f0f0';
+try{const c=localStorage.getItem('hudColor'); if(c) hudColor=c;}catch(e){}
+function setHudColor(c){
+  hudColor=c;
+  $('hudSpeed').style.color=c;
+  try{localStorage.setItem('hudColor',c)}catch(e){}
+  document.querySelectorAll('.hud-swatch').forEach(s=>{
+    const d=s.dataset.color;
+    s.classList.toggle('on', !!d && d.toLowerCase()===c.toLowerCase());
+  });
+  if(/^#[0-9a-fA-F]{6}$/.test(c)) $('hudColorPicker').value=c;
+}
+function openHud(){
+  hudActive=true;
+  $('hudOverlay').classList.remove('hidden');
+  $('hudSettings').classList.add('hidden'); // 每次開 HUD 都從設定關閉的狀態開始
+  setHudColor(hudColor); // 套用記住的顏色並標示選中的色票
+  requestWakeLock(true); // HUD 需要螢幕常亮，忽略一般設定
+  updateHud();
+}
+function closeHud(){
+  hudActive=false;
+  $('hudOverlay').classList.add('hidden');
+  // 只有在「計費中且開了常亮」時才保留鎖，其餘情況釋放
+  if(!(status==='running' && wakeLockEnabled)) releaseWakeLock();
+}
+function openHudSettings(){ $('hudSettings').classList.remove('hidden'); }
+function closeHudSettings(){ $('hudSettings').classList.add('hidden'); }
+function toggleHudMirror(){
+  hudMirror=!hudMirror;
+  $('hudCenter').classList.toggle('mirror',hudMirror);
+  $('hudMirrorToggle').classList.toggle('on',hudMirror);
+}
+function updateHud(){
+  $('hudSpeed').textContent = gpsReady ? String(speed) : '--';
+  $('hudMax').textContent = String(maxSpeed);
+}
 window.addEventListener('beforeunload',e=>{
   e.preventDefault();e.returnValue='';
 });
@@ -615,6 +848,7 @@ function updateUI(){
   $('speedDisplay').textContent = String(speed);
   if(speed>maxSpeed) maxSpeed=speed;
   $('maxSpeedDisplay').textContent = String(maxSpeed);
+  if(hudActive) updateHud();
 
   $('waitDisplay').textContent=fmt(waitTime);
   $('waitFare').textContent='(+NT$'+Math.floor(waitTime/R.wUnit)*R.wRate+')';
