@@ -224,6 +224,8 @@
     padding: 16px;
   }
   .hud-topbar {
+    position: absolute; /* 脫離文件流，讓車速能對齊整個螢幕正中央（直/橫式通用） */
+    top: 16px; left: 16px; right: 16px;
     display: flex;
     align-items: center;
     justify-content: space-between;
