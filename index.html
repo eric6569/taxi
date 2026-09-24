@@ -226,6 +226,7 @@
   .hud-topbar {
     position: absolute; /* 脫離文件流，讓車速能對齊整個螢幕正中央（直/橫式通用） */
     top: 16px; left: 16px; right: 16px;
+    z-index: 1; /* 鏡像時 .hud-center 有 transform 會蓋上來，這裡墊高確保 ⚙ 可點 */
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -296,6 +297,7 @@
   .hud-settings {
     position: absolute;
     inset: 0;
+    z-index: 2; /* 需壓過 topbar 的 z-index，開設定時面板永遠在最上層 */
     display: flex;
     align-items: center;
     justify-content: center;
