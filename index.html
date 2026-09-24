@@ -290,26 +290,27 @@
     cursor: pointer;
   }
 
-  /* HUD 設定面板 */
+  /* HUD 設定面板：置中，半透明讓車速透出來 */
   .hud-settings {
     position: absolute;
     inset: 0;
-    background: rgba(0,0,0,0.6);
     display: flex;
     align-items: center;
     justify-content: center;
     padding: 20px;
+    pointer-events: none; /* 空白處不吃點擊，只有面板本身可操作 */
   }
   .hud-settings-box {
     width: 100%;
     max-width: 340px;
-    background: #1a1a1a;
+    background: rgba(26,26,26,0.5);
     border: 1px solid #333;
     border-radius: 14px;
     padding: 18px;
     display: flex;
     flex-direction: column;
     gap: 16px;
+    pointer-events: auto;
   }
   .hud-settings-title {
     font-size: 15px;
@@ -665,7 +666,7 @@
 
       <div class="hud-set-row hud-set-size">
         <span>字型大小</span>
-        <input type="range" class="hud-size-slider" id="hudSizeSlider" min="1" max="2" step="0.5" oninput="setHudScale(this.value)">
+        <input type="range" class="hud-size-slider" id="hudSizeSlider" min="1" max="2.3" step="0.05" oninput="setHudScale(this.value)">
       </div>
 
       <div class="hud-set-row hud-set-colors">
