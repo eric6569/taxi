@@ -252,17 +252,11 @@
   .hud-center.mirror { transform: scaleX(-1); }
   .hud-speed {
     font-weight: 800;
-    font-size: clamp(120px, 42vmin, 460px);
+    font-size: calc(clamp(120px, 42vmin, 460px) * var(--hud-scale, 1));
     line-height: 0.9;
     letter-spacing: -2px;
     color: #f0f0f0;
     font-variant-numeric: tabular-nums;
-  }
-  .hud-unit {
-    font-size: clamp(20px, 6vmin, 48px);
-    color: #666;
-    font-weight: 600;
-    margin-top: 4px;
   }
   .hud-colors {
     display: flex;
@@ -334,6 +328,17 @@
     flex-direction: column;
     align-items: flex-start;
     gap: 10px;
+  }
+  .hud-set-size {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+  .hud-size-slider {
+    width: 100%;
+    height: 28px;
+    accent-color: #6aa8e0;
+    cursor: pointer;
   }
   .hud-settings-actions {
     display: flex;
@@ -645,7 +650,6 @@
   </div>
   <div class="hud-center" id="hudCenter">
     <div class="hud-speed" id="hudSpeed">--</div>
-    <div class="hud-unit">km/h</div>
   </div>
 
   <div class="hud-settings hidden" id="hudSettings">
@@ -657,6 +661,11 @@
         <button class="toggle-track" id="hudMirrorToggle" onclick="toggleHudMirror()">
           <span class="toggle-thumb"></span>
         </button>
+      </div>
+
+      <div class="hud-set-row hud-set-size">
+        <span>字型大小</span>
+        <input type="range" class="hud-size-slider" id="hudSizeSlider" min="1" max="2" step="0.5" oninput="setHudScale(this.value)">
       </div>
 
       <div class="hud-set-row hud-set-colors">
@@ -741,8 +750,15 @@ document.addEventListener('visibilitychange',()=>{
 });
 
 // ===== HUD 抬頭車速顯示 =====
-let hudActive=false, hudMirror=false, hudColor='#f0f0f0';
+let hudActive=false, hudMirror=false, hudColor='#f0f0f0', hudScale=1;
 try{const c=localStorage.getItem('hudColor'); if(c) hudColor=c;}catch(e){}
+try{const z=parseFloat(localStorage.getItem('hudScale')); if(z) hudScale=z;}catch(e){}
+function setHudScale(v){
+  hudScale=parseFloat(v)||1;
+  $('hudSpeed').style.setProperty('--hud-scale',hudScale);
+  $('hudSizeSlider').value=hudScale;
+  try{localStorage.setItem('hudScale',String(hudScale))}catch(e){}
+}
 function setHudColor(c){
   hudColor=c;
   $('hudSpeed').style.color=c;
@@ -758,6 +774,7 @@ function openHud(){
   $('hudOverlay').classList.remove('hidden');
   $('hudSettings').classList.add('hidden'); // 每次開 HUD 都從設定關閉的狀態開始
   setHudColor(hudColor); // 套用記住的顏色並標示選中的色票
+  setHudScale(hudScale); // 套用記住的字級倍率
   requestWakeLock(true); // HUD 需要螢幕常亮，忽略一般設定
   updateHud();
 }
